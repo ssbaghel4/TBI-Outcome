@@ -1,0 +1,152 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TBI Outcome Predictor - Logistic Regression (Fixed)</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
+    h1, h2 { color: #003366; }
+    form { background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); margin-bottom: 20px; }
+    label, select, input, button { display: block; margin-bottom: 10px; }
+    button { background-color: #007BFF; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background-color: #0056b3; }
+    .result-section { background: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); margin-top: 20px; }
+    .disclaimer { font-size: 12px; color: #555; margin-top: 40px; background: #fff3cd; padding: 15px; border-left: 5px solid #ffeeba; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    table, th, td { border: 1px solid #cccccc; }
+    th, td { padding: 8px; text-align: center; }
+    th { background-color: #e9ecef; }
+  </style>
+  <script>
+    function calculateOutcome() {
+      let age = parseFloat(document.getElementById('age').value);
+      if (age < 15) {
+        alert("Age must be greater than 14 years.");
+        return;
+      }
+      let gcs = parseInt(document.getElementById('gcs').value);
+      let midline = parseInt(document.getElementById('midline').value);
+      let cisterns = parseInt(document.getElementById('cisterns').value);
+      let edh = parseInt(document.getElementById('edh').value);
+      let tsah = parseInt(document.getElementById('tsah').value);
+      let ivh = parseInt(document.getElementById('ivh').value);
+      let largeLesion = parseInt(document.getElementById('largeLesion').value);
+      let evacuated = parseInt(document.getElementById('evacuated').value);
+
+      let logit = -5.3631 + 
+                  (-0.0388 * age) +
+                  (0.7224 * gcs) +
+                  (-0.3325 * midline) +
+                  (-1.5559 * cisterns) +
+                  (0.8275 * edh) +
+                  (-0.6672 * tsah) +
+                  (-1.3390 * ivh) +
+                  (0.3081 * largeLesion) +
+                  (0.3857 * evacuated);
+
+      let probability = 1 / (1 + Math.exp(-logit));
+      let favorablePct = (probability * 100).toFixed(2);
+      let unfav = (100 - favorablePct);
+
+      document.getElementById('result').innerHTML = 
+        "<b>Predicted Probability of Favorable Outcome (GOS 4–5):</b> " + favorablePct + "%";
+
+      let marshall = 2;
+      if (cisterns >= 1) marshall = 3;
+      if (evacuated === 1) marshall = 5;
+      else if (largeLesion === 1 && evacuated === 2) marshall = 6;
+      else if (midline === 1 && largeLesion === 0) marshall = 4;
+      document.getElementById('marshall').innerHTML = "<b>Marshall CT Grade:</b> " + marshall;
+
+      let rotterdam = 1 + cisterns + midline + (1 - edh) + ((tsah || ivh) ? 1 : 0);
+      document.getElementById('rotterdam').innerHTML = "<b>Rotterdam CT Score:</b> " + rotterdam;
+
+      let gos1 = (unfav) * 0.5;
+      let gos2 = (unfav) * 0.2;
+      let gos3 = (unfav) * 0.3;
+      let gos4 = (favorablePct) * 0.4;
+      let gos5 = (favorablePct) * 0.6;
+
+      document.getElementById('gosTable').innerHTML = `
+        <tr><th>GOS</th><th>Predicted Probability</th></tr>
+        <tr><td>GOS 1 (Death)</td><td>${gos1.toFixed(2)}%</td></tr>
+        <tr><td>GOS 2 (Vegetative State)</td><td>${gos2.toFixed(2)}%</td></tr>
+        <tr><td>GOS 3 (Severe Disability)</td><td>${gos3.toFixed(2)}%</td></tr>
+        <tr><td>GOS 4 (Moderate Disability)</td><td>${gos4.toFixed(2)}%</td></tr>
+        <tr><td>GOS 5 (Good Recovery)</td><td>${gos5.toFixed(2)}%</td></tr>
+      `;
+
+      let shortLOS = favorablePct * 0.7;
+      let moderateLOS = favorablePct * 0.2 + unfav * 0.2;
+      let longLOS = unfav * 0.6;
+      document.getElementById('losTable').innerHTML = `
+        <tr><th>Hospital Stay Category</th><th>Predicted Probability</th></tr>
+        <tr><td>0–3 days</td><td>${shortLOS.toFixed(2)}%</td></tr>
+        <tr><td>4–7 days</td><td>${moderateLOS.toFixed(2)}%</td></tr>
+        <tr><td>>7 days</td><td>${longLOS.toFixed(2)}%</td></tr>
+      `;
+    }
+  </script>
+</head>
+<body>
+  <h1>TBI Outcome Predictor - Logistic Regression</h1>
+  <form onsubmit="event.preventDefault(); calculateOutcome();">
+    <label>Age (years, must be >14): <input type="number" id="age" min="14" required></label>
+    <label>GCS at Admission (3-15): <input type="number" id="gcs" min="3" max="15" required></label>
+    <label>Midline Shift:</label>
+    <select id="midline">
+      <option value="0">No shift or ≤5mm</option>
+      <option value="1">Shift >5mm</option>
+    </select>
+    <label>Basal Cisterns:</label>
+    <select id="cisterns">
+      <option value="0">Normal</option>
+      <option value="1">Compressed</option>
+      <option value="2">Absent</option>
+    </select>
+    <label>Epidural Hematoma (EDH):</label>
+    <select id="edh">
+      <option value="0">Absent</option>
+      <option value="1">Present</option>
+    </select>
+    <label>Traumatic SAH (tSAH):</label>
+    <select id="tsah">
+      <option value="0">No</option>
+      <option value="1">Yes</option>
+    </select>
+    <label>Intraventricular Hemorrhage (IVH):</label>
+    <select id="ivh">
+      <option value="0">No</option>
+      <option value="1">Yes</option>
+    </select>
+    <label>High or Mixed Density Lesion >25ml on Imaging:</label>
+    <select id="largeLesion">
+      <option value="0">No</option>
+      <option value="1">Yes</option>
+    </select>
+    <label>If lesion >25ml: Was it surgically evacuated?</label>
+    <select id="evacuated">
+      <option value="0">Not Applicable (No Lesion)</option>
+      <option value="1">Yes, Evacuated Surgically</option>
+      <option value="2">No, Not Evacuated (e.g., patient unfit)</option>
+    </select>
+    <button type="submit">Calculate Outcome</button>
+  </form>
+
+  <div class="result-section">
+    <h2 id="result"></h2>
+    <h2 id="marshall"></h2>
+    <h2 id="rotterdam"></h2>
+    <h2>Predicted Probabilities for Each GOS:</h2>
+    <table id="gosTable"></table>
+    <h2>Predicted Probabilities for Hospital Stay:</h2>
+    <table id="losTable"></table>
+  </div>
+
+  <div class="disclaimer">
+    <b>Disclaimer:</b> This tool is for academic and research use only, based on a logistic regression model trained on a single-center dataset. It is not intended for clinical decision-making or legal use.
+  </div>
+</body>
+</html>
